@@ -243,7 +243,7 @@ const draw_scene = (clock) => {
         const seconds = date.getSeconds();
         const milliseconds = date.getMilliseconds();
         const numSeconds = seconds + milliseconds / 1000;
-        const numMinute = minutes + seconds / 60;
+        const numMinute = minutes + numSeconds / 60;
         const numHour = hours + numMinute / 60;
         iterate_on_hand(clock.hand_props_hour, (value, theta) => {
             draw_tick(clock, theta, 1, .6, clock.color);

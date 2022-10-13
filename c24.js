@@ -10,30 +10,7 @@ const readyPromise = new Promise((resolve, reject) => {
     }
 })
 
-const HandProps = {
-    hour12: {
-        begin: 1,
-        end: 12,
-        offset: 3
-    },
-    hour24: {
-        begin: 0,
-        end: 23,
-        offset: 18
-    },
-    minute: {
-        begin: 1,
-        end: 60,
-        offset: 15
-    },
-    second: {
-        begin: 1,
-        end: 60,
-        offset: 15
-    }
-};
-
-const Colors = {
+const colors = {
     light: "#fff",
     shadow: "#000",
     element: "#333",
@@ -53,6 +30,63 @@ const Colors = {
     event13: "#fafa9e"
 };
 
+const hand_props = {
+    hour12: {
+        begin: 1,
+        end: 12,
+        offset: 3,
+        color: colors.element,
+        width: 5,
+        length: 0.5,
+    },
+    hour24: {
+        begin: 0,
+        end: 23,
+        offset: 18,
+        color: colors.element,
+        width: 5,
+        length: 0.5,
+    },
+    minute: {
+        begin: 1,
+        end: 60,
+        offset: 15,
+        color: colors.element,
+        width: 4,
+        length: 0.8,
+    },
+    second: {
+        begin: 1,
+        end: 60,
+        offset: 15,
+        color: colors.second,
+        width: 3,
+        length: 0.9,
+    },
+};
+
+const legend_props = {
+    hour: {
+        tick_length: 0.6,
+        text_length: 0.68,
+        text_n: null,
+        size: 35/400,
+    },
+    minute_second: {
+        tick_length: 0.89,
+        text_length: 0.89,
+        text_n: 5,
+        size: 25/400,
+    },
+};
+
+const events = [
+    [[[8, 12], [13, 17]], 2, colors.event7],
+    [[[11, 12], [13, 20]], 1, colors.event10],
+    [[[22, 5]], 3, colors.event4],
+    [[[7.9, 9]], 4, colors.event12]
+];
+
 const init = (canvas, params) => {
     const clock = {}
     window.clock = clock
@@ -60,22 +94,20 @@ const init = (canvas, params) => {
         params = {}
     }
 
-    clock.color_hour = params.color_hour ? params.color_hour : Colors.element;
-    clock.color_minute = params.color_minute ? params.color_minute : Colors.element;
-    clock.color_second = params.color_second ? params.color_second : Colors.second;
     clock.canvas = params.canvas ? params.canvas : canvas;
 
-    clock.color_shadow = Colors.shadow;
-    clock.color_light = Colors.light;
+    clock.color_shadow = colors.shadow;
+    clock.color_light = colors.light;
 
     clock.width = params.width ? params.width : (clock.canvas ? clock.canvas.width : 500)
     clock.height = params.height ? params.height : (clock.canvas ? clock.canvas.height : 500)
     clock.h_size = params.h_size ? params.h_size : 22
     clock.m_size = params.m_size ? params.m_size : 11
     clock.effect_width = params.effect_width ? params.effect_width : 2
-    clock.hand_props_hour = params.use_12 ? HandProps.hour12 : HandProps.hour24
-    clock.hand_props_minute = HandProps.minute
-    clock.hand_props_second = HandProps.second
+    clock.hand_props = {}
+    clock.hand_props.hour = params.use_12 ? hand_props.hour12 : hand_props.hour24
+    clock.hand_props.minute = hand_props.minute
+    clock.hand_props.second = hand_props.second
     clock.parent = clock.canvas ? clock.canvas.parentElement : (params.parent ? params.parent : clock.parent = document.body)
 
     if (!clock.canvas) {
@@ -96,21 +128,15 @@ const clean = (clock) => {
 };
 
 const with_effect = (clock, color, code) => {
-    for (let index = 0; index < clock.effect_width; index++) {
-        with_save_restore(clock, () => {
-            clock.ctx.translate(0, index);
-            clock.ctx.fillStyle = clock.color_shadow;
-            clock.ctx.globalAlpha = .5;
-            code();
-        })
-    }
-    for (let index = 0; index < clock.effect_width; index++) {
-        with_save_restore(clock, () => {
-            clock.ctx.translate(0, -index);
-            clock.ctx.fillStyle = clock.color_light;
-            clock.ctx.globalAlpha = .5;
-            code();
-        })
+    for (let [fill_color, translate] of [[clock.color_shadow, 1],[clock.color_light, -1]]) {
+        for (let index = 0; index < clock.effect_width; index++) {
+            with_save_restore(clock, () => {
+                clock.ctx.translate(0, index * translate);
+                clock.ctx.fillStyle = fill_color;
+                clock.ctx.globalAlpha = .5;
+                code();
+            })
+        }
     }
     with_save_restore(clock, () => {
         clock.ctx.fillStyle = color;
@@ -125,16 +151,17 @@ const iterate_on_hand = (hand_props, code) => {
         const theta = get_angle(value, hand_props);
         code(value, theta)
     }
-};
-const draw_hand = (clock, value, hand_props, width, length, color) => {
-    with_effect(clock, color, () => {
+}
+
+const draw_hand = (clock, value, hand_props) => {
+    with_effect(clock, hand_props.color, () => {
         const theta = get_angle(value, hand_props);
         clock.ctx.rotate(theta);
         clock.ctx.beginPath();
-        clock.ctx.moveTo(-15, -width);
-        clock.ctx.lineTo(-15, width);
-        clock.ctx.lineTo(clock.clock_radius * length, 1);
-        clock.ctx.lineTo(clock.clock_radius * length, -1);
+        clock.ctx.moveTo(-15, -hand_props.width);
+        clock.ctx.lineTo(-15, hand_props.width);
+        clock.ctx.lineTo(clock.clock_radius * hand_props.length, 1);
+        clock.ctx.lineTo(clock.clock_radius * hand_props.length, -1);
         clock.ctx.fill()
     })
 };
@@ -185,10 +212,6 @@ const draw_text = (clock, value, theta, text_size, length, color) => {
         const x2 = x1
         const y2 = y1+height/2+height/4
         clock.ctx.fillText(value, x2, y2)
-        // clock.ctx.beginPath()
-        // clock.ctx.rect(x1, y1, width, height)
-        // clock.ctx.stroke()
-        // clock.ctx.closePath()
     })
 };
 const draw_arc = (clock, hour1, hour2, hand_props, length_min, length_max, color) => {
@@ -211,7 +234,7 @@ const draw_event = (clock, hour_range, level, color) => {
         const hour_item = hour_range[i];
         const hour_min = hour_item[0];
         const hour_max = hour_item[1];
-        results.push(draw_arc(clock, hour_min, hour_max, clock.hand_props_hour, .2 + .05 * level, .3 + .05 * level, color))
+        results.push(draw_arc(clock, hour_min, hour_max, clock.hand_props.hour, .2 + .05 * level, .3 + .05 * level, color))
     }
     return results
 };
@@ -232,6 +255,17 @@ const with_save_restore = (clock, code) => {
     clock.ctx.restore()
 }
 
+const draw_legend = (clock, hand_props, legend_props) => {
+    iterate_on_hand(hand_props, (value, theta) => {
+        if ((legend_props.text_n === null) || (value % legend_props.text_n === 0)) {
+            draw_text(clock, value, theta, clock.clock_radius * legend_props.size, legend_props.text_length, clock.color)
+        } 
+        if ((legend_props.text_n === null) || (value % legend_props.text_n !== 0)) {
+            draw_tick(clock, theta, 1, legend_props.tick_length, clock.color)
+        }
+    });
+}
+
 const draw_scene = (clock) => {
     clock.canvas.width = clock.width;
     clock.canvas.height = clock.height;
@@ -245,26 +279,15 @@ const draw_scene = (clock) => {
         const numSeconds = seconds + milliseconds / 1000;
         const numMinute = minutes + numSeconds / 60;
         const numHour = hours + numMinute / 60;
-        iterate_on_hand(clock.hand_props_hour, (value, theta) => {
-            draw_tick(clock, theta, 1, .6, clock.color);
-            draw_text(clock, value, theta, clock.h_size, .68, clock.color)
-        })
-        iterate_on_hand(clock.hand_props_minute, (value, theta) => {
-            if (value % 5 === 0) {
-                draw_text(clock, value, theta, clock.m_size, .89, clock.color)
-            } else {
-                draw_tick(clock, theta, 1, .89, clock.color)
-            }
-        });
-        draw_events(clock, [
-            [[[8, 12], [13, 17]], 2, Colors.event7],
-            [[[11, 12], [13, 20]], 1, Colors.event10],
-            [[[22, 5]], 3, Colors.event4],
-            [[[7.9, 9]], 4, Colors.event12]
-        ]);
-        draw_hand(clock, numHour, clock.hand_props_hour, 5, .5, clock.color_hour);
-        draw_hand(clock, numMinute, clock.hand_props_minute, 4, .8, clock.color_minute);
-        draw_hand(clock, numSeconds, clock.hand_props_second, 3, .9, clock.color_second);
+
+        draw_legend(clock, clock.hand_props.hour, legend_props.hour);
+        draw_legend(clock, clock.hand_props.minute, legend_props.minute_second);
+
+        draw_events(clock, clock.events);
+        
+        draw_hand(clock, numHour, clock.hand_props.hour);
+        draw_hand(clock, numMinute, clock.hand_props.minute);
+        draw_hand(clock, numSeconds, clock.hand_props.second);
     })
 };
 
@@ -275,8 +298,7 @@ const start = (clock) => {
         clock.width = width;
         clock.height = height;
         clock.clock_radius = Math.min(width, height)/2;
-        clock.h_size = Math.floor(clock.clock_radius*35/400)
-        clock.m_size = Math.floor(clock.clock_radius*25/400)
+        clock.events = events;
     }
     listener()
     window.addEventListener("resize", listener);
